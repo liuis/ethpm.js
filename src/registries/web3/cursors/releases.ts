@@ -6,14 +6,14 @@ import Paged from "./paged";
 
 import * as pkg from "ethpm/package";
 import BN from "bn.js";
-import Web3 from "web3";
+import Cfx from "conflux-web";
 
 type ResultType = Promise<pkg.Version>;
 
 export default class ReleasesCursor extends Paged<BN> implements IterableIterator<ResultType> {
   private pointer: BN;
   private length: BN;
-  private web3: Web3;
+  private web3: Cfx;
   private from: string;
   private to: string;
 
@@ -33,7 +33,7 @@ export default class ReleasesCursor extends Paged<BN> implements IterableIterato
         resolve(""); // TODO: empty string or something else?
       }
       else {
-        const data = this.web3.eth.abi.encodeFunctionCall({
+        const data = this.web3.cfx.abi.encodeFunctionCall({
           name: "getReleaseData",
           type: "function",
           inputs: [{
@@ -42,12 +42,12 @@ export default class ReleasesCursor extends Paged<BN> implements IterableIterato
           }]
         }, ["0x" + releaseId.toString("hex")]);
 
-        this.web3.eth.call({
+        this.web3.cfx.call({
           from: this.from,
           to: this.to,
           data
         }).then((result) => {
-          return this.web3.eth.abi.decodeParameters(["string", "string", "string"], result);
+          return this.web3.cfx.abi.decodeParameters(["string", "string", "string"], result);
         }).then((parameters) => {
           resolve(parameters[1]);
         });
@@ -73,7 +73,7 @@ export default class ReleasesCursor extends Paged<BN> implements IterableIterato
         const offset = this.pointer.sub(this.pointer.mod(this.pageSize));
         const limit = offset.add(this.pageSize).subn(1);
 
-        const data = this.web3.eth.abi.encodeFunctionCall({
+        const data = this.web3.cfx.abi.encodeFunctionCall({
           name: "getAllReleaseIds",
           type: "function",
           inputs: [{
@@ -89,7 +89,7 @@ export default class ReleasesCursor extends Paged<BN> implements IterableIterato
         }, ["0x" + offset.toString("hex"), "0x" + limit.toString("hex")]);
 
         const promise: ResultType = new Promise((resolve, reject) => {
-          return this.web3.eth.call({
+          return this.web3.cfx.call({
             from: this.from,
             to: this.to,
             data
@@ -97,7 +97,7 @@ export default class ReleasesCursor extends Paged<BN> implements IterableIterato
             // split packageIds into an array of BNs
             // set the page
             // get/resolve the datum
-            const results = this.web3.eth.abi.decodeParameters(["bytes32[]", "uint"], result);
+            const results = this.web3.cfx.abi.decodeParameters(["bytes32[]", "uint"], result);
             const packageIds = results[0].map((id: string) => new BN(id));
             this.setPage(this.pointer, packageIds);
             return this.getReleaseData();

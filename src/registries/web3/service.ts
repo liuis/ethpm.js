@@ -5,8 +5,8 @@
 import { URL } from "url";
 import * as t from "io-ts";
 import { ThrowReporter } from "io-ts/lib/ThrowReporter";
-import { Provider as Web3Provider } from "web3/providers";
-import Web3 from "web3";
+import { Provider as Web3Provider } from "conflux-web/providers";
+import Cfx from "conflux-web";
 
 import { Maybe } from "ethpm/types";
 import * as config from "ethpm/config";
@@ -20,7 +20,7 @@ import ReleasesCursor from "./cursors/releases";
 const PAGE_SIZE: number = 10;
 
 export class Web3RegistryService implements registries.Service {
-  private web3: Web3;
+  private web3: Cfx;
   private address: string;
   private accounts: string[];
 
@@ -31,7 +31,7 @@ export class Web3RegistryService implements registries.Service {
   }
 
   async init (): Promise<void> {
-    this.accounts = await this.web3.eth.getAccounts();
+    this.accounts = await this.web3.cfx.getAccounts();
   }
 
   async publish (
@@ -39,7 +39,7 @@ export class Web3RegistryService implements registries.Service {
     version: pkg.Version,
     manifest: URL
   ): Promise<any> {
-    const data = this.web3.eth.abi.encodeFunctionCall({
+    const data = this.web3.cfx.abi.encodeFunctionCall({
       name: "release",
       type: "function",
       inputs: [{
@@ -62,11 +62,11 @@ export class Web3RegistryService implements registries.Service {
 
     // estimate gas requirement, and pad it a bit because some clients don't
     // handle gas refunds and such well
-    let gas = await this.web3.eth.estimateGas(txParams)
+    let gas = await this.web3.cfx.estimateGas(txParams)
     console.log(gas)
     gas *= 1.2
 
-    await this.web3.eth.sendTransaction({
+    await this.web3.cfx.sendTransaction({
       gas,
       ...txParams
     })
@@ -75,19 +75,19 @@ export class Web3RegistryService implements registries.Service {
   async packages (): Promise<PackagesCursor> {
     // this returns an iterable/iterator of promises to package names
 
-    const numPackagesTx = this.web3.eth.abi.encodeFunctionCall({
+    const numPackagesTx = this.web3.cfx.abi.encodeFunctionCall({
       name: "getNumPackages",
       type: "function",
       inputs: []
     }, []);
 
-    let numPackages: string | BN = await this.web3.eth.call({
+    let numPackages: string | BN = await this.web3.cfx.call({
       from: this.accounts[0],
       to: this.address,
       data: numPackagesTx
     });
     numPackages = new BN(
-      this.web3.eth.abi.decodeParameter("uint", numPackages)
+      this.web3.cfx.abi.decodeParameter("uint", numPackages)
     );
 
     // now paginate
@@ -105,7 +105,7 @@ export class Web3RegistryService implements registries.Service {
   package (packageName: pkg.PackageName) {
     return {
       releases: async (): Promise<ReleasesCursor> => {
-        const numReleasesTx = this.web3.eth.abi.encodeFunctionCall({
+        const numReleasesTx = this.web3.cfx.abi.encodeFunctionCall({
           name: "getPackageData",
           type: "function",
           inputs: [{
@@ -114,12 +114,12 @@ export class Web3RegistryService implements registries.Service {
           }]
         }, [packageName]);
 
-        let result: string = await this.web3.eth.call({
+        let result: string = await this.web3.cfx.call({
           from: this.accounts[0],
           to: this.address,
           data: numReleasesTx
         });
-        const results = this.web3.eth.abi.decodeParameters([{
+        const results = this.web3.cfx.abi.decodeParameters([{
           type: "address",
           name: "packageOwner"
         }, {
@@ -145,7 +145,7 @@ export class Web3RegistryService implements registries.Service {
       },
 
       release: async (version: pkg.Version): Promise<URL> => {
-        let data = this.web3.eth.abi.encodeFunctionCall({
+        let data = this.web3.cfx.abi.encodeFunctionCall({
           name: "getReleaseId",
           type: "function",
           inputs: [{
@@ -157,14 +157,14 @@ export class Web3RegistryService implements registries.Service {
           }]
         }, [packageName, version]);
 
-        let result = await this.web3.eth.call({
+        let result = await this.web3.cfx.call({
           from: this.accounts[0],
           to: this.address,
           data
         });
-        let releaseId = this.web3.eth.abi.decodeParameter("bytes32", result);
+        let releaseId = this.web3.cfx.abi.decodeParameter("bytes32", result);
 
-        data = this.web3.eth.abi.encodeFunctionCall({
+        data = this.web3.cfx.abi.encodeFunctionCall({
           name: "getReleaseData",
           type: "function",
           inputs: [{
@@ -173,13 +173,13 @@ export class Web3RegistryService implements registries.Service {
           }]
         }, ["0x" + releaseId.toString("hex")]);
 
-        result = await this.web3.eth.call({
+        result = await this.web3.cfx.call({
           from: this.accounts[0],
           to: this.address,
           data
         });
 
-        let parameters = this.web3.eth.abi.decodeParameters(
+        let parameters = this.web3.cfx.abi.decodeParameters(
           ["string", "string", "string"], result
         );
         return new URL(parameters[2]);
